@@ -6,6 +6,8 @@ Author: Ralf Junghanns / Benjamin Gutzmann
 EMail: ralf.junghanns@gmail.com
 """
 
+from typing import Optional
+
 from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
 from flopyAdapter.mapping.object_to_package_mapping import OBJECT_TO_PACKAGE_NAME_MAPPER
 
@@ -216,10 +218,18 @@ class FlopyDataModel:
 
             self._report += calculation_report
 
-    def get_fitness(self, objectives, constraints, objects):
-        fitness_adapter = InowasFlopyReadFitness(objectives, constraints, objects, self._flopy_models["mf"])
+    def get_fitness(self,
+                    objectives: list,
+                    constraints: list,
+                    objects: list) -> Optional[float]:
+        overall_success = [self._flopy_models_success[model_type] for model_type in self._flopy_models]
 
-        return fitness_adapter.get_fitness()
+        if all(overall_success):
+            fitness_adapter = InowasFlopyReadFitness(objectives, constraints, objects, self._flopy_models["mf"])
+
+            return fitness_adapter.get_fitness()
+        else:
+            return None
 
     @staticmethod
     def run_hob_statistics(model):
