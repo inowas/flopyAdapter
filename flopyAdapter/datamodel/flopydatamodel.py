@@ -72,9 +72,9 @@ class FlopyDataModel:
         self._version = version
         self._uuid = uuid
 
-    def add_objects_to_model(self,
-                             objects: list) -> None:
-        """ Merges (well) objects into a modflow model, adding stress periods on existing ones or
+    def add_wells(self,
+                  objects: list) -> None:
+        """ Merges well objects into a modflow model, adding stress periods on existing ones or
         creating new ones for those which do not match in location
 
         Args:
