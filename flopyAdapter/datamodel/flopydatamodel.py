@@ -9,8 +9,6 @@ EMail: ralf.junghanns@gmail.com
 from typing import Optional
 
 from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
-from flopyAdapter.mapping.object_to_package_mapping import OBJECT_TO_PACKAGE_NAME_MAPPER
-
 from flopyAdapter.flopy_adapter.inowas_flopy_calculationadapter import InowasFlopyCalculationAdapter
 from flopyAdapter.flopy_adapter.inowas_flopy_readfitness import InowasFlopyReadFitness
 from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
@@ -93,15 +91,15 @@ class FlopyDataModel:
         for obj in objects:
             obj_position = obj["position"]
 
-            package_type = OBJECT_TO_PACKAGE_NAME_MAPPER.get(obj["type"], obj["type"])  # "well" -> "wel"
+            obj_type = obj["type"]  # "well" -> "wel"
 
-            if package_type not in mf_data:
-                mf_data[package_type] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER[package_type].default()
+            if obj_type not in mf_data:
+                mf_data[obj_type] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER[obj_type].default()
 
-            if package_type == "wel":
+            if obj_type == "wel":
 
-                if not mf_data[package_type]["stress_period_data"]:
-                    mf_data[package_type]["stress_period_data"] = {}
+                if not mf_data[obj_type]["stress_period_data"]:
+                    mf_data[obj_type]["stress_period_data"] = {}
 
                 for period, obj_flux in obj["flux"].items():
                     period_flux = [obj_position["lay"]["result"],
@@ -109,18 +107,18 @@ class FlopyDataModel:
                                    obj_position["col"]["result"],
                                    obj_flux["result"]]
 
-                    if period not in mf_data[package_type]["stress_period_data"]:
-                        mf_data[package_type]["stress_period_data"][period] = []
+                    if period not in mf_data[obj_type]["stress_period_data"]:
+                        mf_data[obj_type]["stress_period_data"][period] = []
 
                     same_position_flux = [existing_flux
-                                          for existing_flux in mf_data[package_type]["stress_period_data"][period]
+                                          for existing_flux in mf_data[obj_type]["stress_period_data"][period]
                                           if existing_flux[:3] == period_flux[:3]]
 
                     if same_position_flux:
                         same_position_flux[0][3] += period_flux[3]
                         continue
 
-                    mf_data[package_type]["stress_period_data"][period].append(period_flux)
+                    mf_data[obj_type]["stress_period_data"][period].append(period_flux)
 
     def build_flopy_models(self):
         """Builds the flopy models based on what's found in the model data. The existing packages also
@@ -152,7 +150,7 @@ class FlopyDataModel:
         else:
             for model in self._regular_order:
                 if self.flopy_models_data[model]:
-                    # Basic datamodel is needed by both mt and mp
+                    # Basic data model is needed by both mt and mp
                     package_content = self.read_packages(self.flopy_models_data[model])
 
                     self._flopy_models[model] = self.create_model(self.package_orders[model], package_content)
@@ -172,7 +170,7 @@ class FlopyDataModel:
                 if package in ['mf', 'mt', 'mp', 'swt']:
                     print(f'Create Flopy Model: {package}')
                     if model == "mt":
-                        # In opposition to the other models mt needs the modflow mf datamodel as basis
+                        # In opposition to the other models mt needs the modflow mf data model as basis
                         model = self.create_package(package, package_content[package], self._flopy_models["mf"])
                     else:
                         model = self.create_package(package, package_content[package])
@@ -233,5 +231,5 @@ class FlopyDataModel:
 
     @staticmethod
     def run_hob_statistics(model):
-        print(f'Calculate hob-statistics for datamodel {model.name}')
+        print(f'Calculate hob-statistics for data model {model.name}')
         HobStatistics(model.model_ws, model.name).write_to_file()
