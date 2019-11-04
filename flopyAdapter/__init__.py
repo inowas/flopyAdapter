@@ -1,3 +1,3 @@
 """Import relevant modules """
 
-from flopyAdapter.datamodel.flopydatamodel import FlopyDataModel
+from .datamodel.flopydatamodel import FlopyDataModel
