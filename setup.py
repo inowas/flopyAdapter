@@ -1,4 +1,4 @@
-from setuptools import setup
+from setuptools import setup, find_packages
 
 try:
     import flopy
@@ -20,6 +20,6 @@ setup(
     long_description=long_description,
     author='Benjamin Gutzmann',
     author_email='gutzemann@gmail.com',
-    packages=['flopyAdapter'],
+    packages=find_packages(),
     install_requires=[f'flopy>={__version__}', 'numpy==1.17.2']
 )
