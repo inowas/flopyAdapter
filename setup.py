@@ -1,6 +1,10 @@
 from setuptools import setup
 
-from flopyAdapter import __version__
+try:
+    import flopy
+    __version__ = flopy.version.__version__
+except ImportError:
+    __version__ = None
 
 if not __version__:
     __version__ = '3.2.12'
