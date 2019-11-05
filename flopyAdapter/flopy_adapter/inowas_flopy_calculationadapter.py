@@ -6,13 +6,6 @@ Author: Ralf Junghanns
 EMail: ralf.junghanns@gmail.com
 """
 
-from flopyAdapter.flopy_adapter.flopy_read_classes.readbudget import ReadBudget
-from flopyAdapter.flopy_adapter.flopy_read_classes.readconcentration import ReadConcentration
-from flopyAdapter.flopy_adapter.flopy_read_classes.readdrawdown import ReadDrawdown
-from flopyAdapter.flopy_adapter.flopy_read_classes.readhead import ReadHead
-
-from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
-
 
 class InowasFlopyCalculationAdapter:
     """The Flopy Class"""
