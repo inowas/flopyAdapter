@@ -12,7 +12,7 @@ from typing import Union
 import flopy
 
 
-class InowasFlopyReadFitness:
+class FlopyFitnessAdapter:
     """Calculation of objective values of a datamodel
 
     Args:

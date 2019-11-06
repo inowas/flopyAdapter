@@ -1,34 +1,12 @@
-"""
-This module is an intermediate layer between flopy version 3.2
-and the inowas-modflow-configuration format.
+"""This module holds a class to build and run flopy models based on the given modflowdatamodel.
 
 Author: Ralf Junghanns / Benjamin Gutzmann
 EMail: ralf.junghanns@gmail.com
+
 """
 
-from typing import Optional
 
-from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
-from flopyAdapter.flopy_adapter.inowas_flopy_calculationadapter import InowasFlopyCalculationAdapter
-from flopyAdapter.flopy_adapter.inowas_flopy_readfitness import InowasFlopyReadFitness
-from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
-
-
-class FlopyDataModel:
-    """The FlopyDataModel class is used to represent a layer between the modflow model data (dictionary)
-    and the flopy models which are build on top of this data. It offers a function to add objects to the
-    the model, which is important as we store objects separate from the original model as they are part
-    of the optimization process and thus change often.  Furthermore the class offers methods to build
-    flopy model objects ready to run for the calculation adapter and finally methods to read the fitness
-    after a model run.
-
-    Args:
-        version () - the version of modflow that is used for this model
-        data () - modflow model data that holds the package information needed to build flopy models
-        uuid () - a unique id for the model being run (appears in file names)
-
-    """
-
+class FlopyModel:
     _regular_order = ["mf", "mt", "mp"]
     _flopy_model_order = ["swt", *_regular_order]
 
@@ -57,68 +35,8 @@ class FlopyDataModel:
         "mp": ['mp', 'bas', 'sim']
     }
 
-    def __init__(self,
-                 version: str,
-                 data: dict,
-                 uuid: str):
-        # todo schemas and checking for mf, mt, mp, swt
-
-        self.flopy_models_data = {
-            model: data.get(model) for model in self._flopy_model_order
-        }
-
-        self._version = version
-        self._uuid = uuid
-
-    def add_wells(self,
-                  objects: list) -> None:
-        """ Merges well objects into a modflow model, adding stress periods on existing ones or
-        creating new ones for those which do not match in location
-
-        Args:
-            self - the model class holding the model data as dictionary
-            objects (list) - a list of dictionaries, which each describe an object (well) with all
-            its information and especially the stress periods
-
-        Returns:
-            None - merges objects into the existing model data of the class
-
-        """
-
-        # Set mf data path
-        mf_data = self.flopy_models_data["mf"]
-
-        for obj in objects:
-            obj_position = obj["position"]
-
-            obj_type = obj["type"]  # "well" -> "wel"
-
-            if obj_type not in mf_data:
-                mf_data[obj_type] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER[obj_type].default()
-
-            if obj_type == "wel":
-
-                if not mf_data[obj_type]["stress_period_data"]:
-                    mf_data[obj_type]["stress_period_data"] = {}
-
-                for period, obj_flux in obj["flux"].items():
-                    period_flux = [obj_position["lay"]["result"],
-                                   obj_position["row"]["result"],
-                                   obj_position["col"]["result"],
-                                   obj_flux["result"]]
-
-                    if period not in mf_data[obj_type]["stress_period_data"]:
-                        mf_data[obj_type]["stress_period_data"][period] = []
-
-                    same_position_flux = [existing_flux
-                                          for existing_flux in mf_data[obj_type]["stress_period_data"][period]
-                                          if existing_flux[:3] == period_flux[:3]]
-
-                    if same_position_flux:
-                        same_position_flux[0][3] += period_flux[3]
-                        continue
-
-                    mf_data[obj_type]["stress_period_data"][period].append(period_flux)
+    def __init__(self):
+        pass
 
     def build_flopy_models(self):
         """Builds the flopy models based on what's found in the model data. The existing packages also

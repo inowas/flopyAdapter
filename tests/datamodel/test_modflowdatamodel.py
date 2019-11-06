@@ -4,7 +4,7 @@
 import pytest
 from copy import deepcopy
 import json
-from flopyAdapter.datamodel.flopydatamodel import FlopyDataModel
+from flopyAdapter.datamodel.modflowdatamodel import sort_dictionary, ModflowDataModel
 
 SAMPLE_FILE_WELL_WITH_SAME_POSITION = "tests/test_data/request-well-with-same-position.json"
 
@@ -14,6 +14,15 @@ with open(SAMPLE_FILE_WELL_WITH_SAME_POSITION) as f:
 FILE_TEST1_TEST2 = "tests/test_data/data_test1_test2.json"
 FILE_TEST3 = "tests/test_data/data_test3.json"
 FILE_TEST4 = "tests/test_data/data_test4.json"
+
+
+def test_function_sort_dictionary():
+    with pytest.raises(AssertionError):
+        sort_dictionary("bla", False)  # no dictionary passed
+
+    assert sort_dictionary({}, False) == {}
+
+    assert sort_dictionary({"b": 2, "a": {"d": 4, "c": 3}}, recursive=True) == {"a": {"c": 3, "d": 4}, "b": 2}
 
 
 def test_add_well_1():
@@ -28,13 +37,11 @@ def test_add_well_1():
     with open(FILE_TEST1_TEST2) as f:
         expected_data = json.load(f)
 
-    flopy_data_model = FlopyDataModel(version=test_data["version"],
-                                      data=test_data["data"],
-                                      uuid=test_data["optimization_id"])
+    flopy_data_model = ModflowDataModel(data=test_data["data"])
 
-    flopy_data_model.add_wells(test_data["optimization"]["objects"])
+    flopy_data_model.add_objects(test_data["optimization"]["objects"])
 
-    assert flopy_data_model.flopy_models_data["mf"]["wel"] == expected_data["wel"]
+    assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]
 
 
 def test_add_well_2():
@@ -49,13 +56,11 @@ def test_add_well_2():
     with open(FILE_TEST1_TEST2) as f:
         expected_data = json.load(f)
 
-    flopy_data_model = FlopyDataModel(version=test_data["version"],
-                                      data=test_data["data"],
-                                      uuid=test_data["optimization_id"])
+    flopy_data_model = ModflowDataModel(data=test_data["data"])
 
-    flopy_data_model.add_wells(test_data["optimization"]["objects"])
+    flopy_data_model.add_objects(test_data["optimization"]["objects"])
 
-    assert flopy_data_model.flopy_models_data["mf"]["wel"] == expected_data["wel"]
+    assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]
 
 
 def test_add_well_3():
@@ -68,13 +73,11 @@ def test_add_well_3():
     with open(FILE_TEST3) as f:
         expected_data = json.load(f)
 
-    flopy_data_model = FlopyDataModel(version=test_data["version"],
-                                      data=test_data["data"],
-                                      uuid=test_data["optimization_id"])
+    flopy_data_model = ModflowDataModel(data=test_data["data"])
 
-    flopy_data_model.add_wells(test_data["optimization"]["objects"])
+    flopy_data_model.add_objects(test_data["optimization"]["objects"])
 
-    assert flopy_data_model.flopy_models_data["mf"]["wel"] == expected_data["wel"]
+    assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]
 
 
 def test_add_well_4():
@@ -92,10 +95,8 @@ def test_add_well_4():
     with open(FILE_TEST4) as f:
         expected_data = json.load(f)
 
-    flopy_data_model = FlopyDataModel(version=test_data["version"],
-                                      data=test_data["data"],
-                                      uuid=test_data["optimization_id"])
+    flopy_data_model = ModflowDataModel(data=test_data["data"])
 
-    flopy_data_model.add_wells(test_data["optimization"]["objects"])
+    flopy_data_model.add_objects(test_data["optimization"]["objects"])
 
-    assert flopy_data_model.flopy_models_data["mf"]["wel"] == expected_data["wel"]
+    assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]

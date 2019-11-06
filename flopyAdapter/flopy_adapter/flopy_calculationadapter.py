@@ -14,7 +14,7 @@ from flopyAdapter.flopy_adapter.flopy_read_classes.readhead import ReadHead
 from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
 
 
-class InowasFlopyCalculationAdapter:
+class FlopyCalculationAdapter:
     """The Flopy Class"""
 
     _report = None
