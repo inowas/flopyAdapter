@@ -17,16 +17,6 @@ from flopyAdapter.flopy_adapter.flopy_calculationadapter import FlopyCalculation
 from flopyAdapter.flopy_adapter.flopy_fitnessadapter import FlopyFitnessAdapter
 from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
 
-# SCHEMA_SERVER_URL = 'https://schema.inowas.com'
-HTTPS_STRING = "https://"
-SCHEMA_MODFLOW_MODEL_DATA = PurePosixPath("schema.inowas.com/modflow/packages/modflow_model_data.json")
-
-with urlopen(f"{HTTPS_STRING}{SCHEMA_MODFLOW_MODEL_DATA}") as f:
-    modflow_model_data_schema = json.load(f)
-
-path_resolver = RefResolver(f"{HTTPS_STRING}{SCHEMA_MODFLOW_MODEL_DATA.parent}",
-                            referrer=modflow_model_data_schema)
-
 
 def sort_dictionary(dictionary: dict,
                     recursive: bool):
@@ -62,15 +52,20 @@ class ModflowDataModel:
                  # uuid: str,
                  # version: str,
                  data: dict):
-        self.validate(data)
-
         self._data = data
 
     @staticmethod
-    def validate(data):
-        Draft7Validator(schema=modflow_model_data_schema, resolver=path_resolver).validate(data)
+    def from_data(data, schema, resolver):
+        ModflowDataModel.validate(data, schema, resolver)
 
-    def get_data(self):
+        return ModflowDataModel(data)
+
+    @staticmethod
+    def validate(data, schema, resolver):
+        Draft7Validator(schema=schema, resolver=resolver).validate(data)
+
+    @property
+    def data(self):
         """ Function to return modflow model data
 
         :return:
@@ -87,7 +82,7 @@ class ModflowDataModel:
             f"Error: requested module {mf_module} is not one of 'mf', 'mt', 'mp'."
 
         try:
-            return self.get_data()[mf_module]
+            return self.data[mf_module]
         except KeyError:
             raise KeyError(f"Error: module {mf_module} is not available in modflow model data.")
 
@@ -113,20 +108,24 @@ class ModflowDataModel:
 
         """
 
-        ordered_model_data = sort_dictionary(self.get_data(), recursive=True)
+        ordered_model_data = sort_dictionary(self.data, recursive=True)
 
         return md5(json.dumps(ordered_model_data).econde("utf-8")).hexdigest()
 
     # Attributes accessor
+    @property
     def nlay(self):
         return self.get_package("mf", "dis")["nlay"]
 
+    @property
     def nrow(self):
         return self.get_package("mf", "dis")["nrow"]
 
+    @property
     def ncol(self):
         return self.get_package("mf", "dis")["ncol"]
 
+    @property
     def nper(self):
         return self.get_package("mf", "dis")["nper"]
 
@@ -145,10 +144,8 @@ class ModflowDataModel:
 
         """
 
-        # Set mf data path
-        # mf_data = self.flopy_models_data["mf"]
-
         for obj in objects:
+            assert obj["type"] in ["wel"], f"Error: object has unknown type {obj['type']}"
 
             if obj["type"] == "wel":
                 lay = obj["position"]["lay"]["result"]
@@ -157,35 +154,38 @@ class ModflowDataModel:
                 pumping_rates = [obj["flux"][flux_period]["result"] for flux_period in obj["flux"]]
 
                 self.add_well(lay=lay, row=row, col=col, pumping_rates=pumping_rates)
-            else:
-                raise ValueError(f"Error: object has unknown type {obj['type']}")
 
     def add_well(self, lay, row, col, pumping_rates):
-        raise NotImplementedError
-        # if obj_type not in mf_data:
-        #     mf_data[obj_type] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER[obj_type].default()
-        #
-        # if obj_type == "wel":
-        #
-        #     if not mf_data[obj_type]["stress_period_data"]:
-        #         mf_data[obj_type]["stress_period_data"] = {}
-        #
-        #     for period, obj_flux in obj["flux"].items():
-        #         period_flux = [obj_position["lay"]["result"],
-        #                        obj_position["row"]["result"],
-        #                        obj_position["col"]["result"],
-        #                        obj_flux["result"]]
-        #
-        #         if period not in mf_data[obj_type]["stress_period_data"]:
-        #             mf_data[obj_type]["stress_period_data"][period] = []
-        #
-        #         same_position_flux = [existing_flux
-        #                               for existing_flux in mf_data[obj_type]["stress_period_data"][period]
-        #                               if existing_flux[:3] == period_flux[:3]]
-        #
-        #         if same_position_flux:
-        #             same_position_flux[0][3] += period_flux[3]
-        #             continue
-        #
-        #         mf_data[obj_type]["stress_period_data"][period].append(period_flux)
-        pass
+        bound_error_message = f"Error: {0} {1} out of bounds which are [0, {2}] for nlay {3}"
+        if lay not in range(self.nlay):
+            raise ValueError(bound_error_message.format("layer", lay, self.nlay - 1, self.nlay))
+        if row not in range(self.nrow):
+            raise ValueError(bound_error_message.format("row", row, self.nrow - 1, self.nrow))
+        if col not in range(self.ncol):
+            raise ValueError(bound_error_message.format("layer", lay, self.nlay - 1, self.nlay))
+        if len(pumping_rates) != self.nper:
+            raise ValueError(f"Error: number of pumping rates is {len(pumping_rates)} not equal to nper={self.nper}")
+
+        if "wel" not in self.data["mf"]:
+            self.data["mf"]["packages"].extend("wel")
+            self.data["mf"]["wel"] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER["wel"].default()
+
+        if not self.data["mf"]["wel"]["stress_period_data"]:
+            self.data["mf"]["wel"]["stress_period_data"] = {}
+
+        for period, flux in enumerate(pumping_rates):
+            period_flux = [lay, row, col, flux]
+
+            if str(period) not in self.data["mf"]["wel"]["stress_period_data"]:
+                self.data["mf"]["wel"]["stress_period_data"][str(period)] = []
+
+            same_position_flux = [existing_flux
+                                  for existing_flux in self.data["mf"]["wel"]["stress_period_data"][str(period)]
+                                  if existing_flux[:3] == period_flux[:3]]
+
+            if same_position_flux:
+                same_position_flux[0][3] += period_flux[3]
+                continue
+
+            self.data["mf"]["wel"]["stress_period_data"][period].append(period_flux)
+
