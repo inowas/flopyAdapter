@@ -2,8 +2,7 @@
  """
 from pathlib import PurePosixPath
 import json
-from jsonschema import Draft7Validator, RefResolver
-from jsonschema.exceptions import ValidationError
+from jsonschema import RefResolver, ValidationError
 from copy import deepcopy
 from urllib.request import urlopen
 import pytest
@@ -16,7 +15,7 @@ SCHEMA_MODFLOW_MODEL_DATA = PurePosixPath("schema.inowas.com/modflow/packages/mo
 with urlopen(f"{HTTPS_STRING}{SCHEMA_MODFLOW_MODEL_DATA}") as f:
     modflowmodeldata_schema = json.load(f)
 
-resolver = RefResolver(f"{HTTPS_STRING}{SCHEMA_MODFLOW_MODEL_DATA.parent}",
+resolver = RefResolver(f"{HTTPS_STRING}{SCHEMA_MODFLOW_MODEL_DATA}",
                        referrer=modflowmodeldata_schema)
 
 SAMPLE_FILE_WELL_WITH_SAME_POSITION = "tests/test_data/modflow_model_data.json"
@@ -31,14 +30,18 @@ FILE_TEST4 = "tests/test_data/data_test4.json"
 
 def test_function_sort_dictionary():
     # test for: no dictionary passed
-    with pytest.raises(AssertionError):
-        sort_dictionary("bla", False)
+    with pytest.raises(TypeError):
+        sort_dictionary("abc", False)
 
     # test for: empty dictionary
     assert sort_dictionary({}, False) == {}
 
     # test for: multilayer dictionary sorting
     assert sort_dictionary({"b": 2, "a": {"d": 4, "c": 3}}, recursive=True) == {"a": {"c": 3, "d": 4}, "b": 2}
+
+    # test for: different key types
+    with pytest.raises(TypeError):
+        sort_dictionary({"a": 1, 2: 2}, recursive=False)
 
 
 def test_modflowdatamodel_schemavalidation():
@@ -78,59 +81,143 @@ def test_modflowdatamodel_add_well_to_existing_wells():
                                  "wel": {"stress_period_data": {"0": [[0, 0, 0, 0000]]}}}}
 
 
-# def test_add_well_2():
-#     """ Test for adding a well to empty stress period data (-> {})
-#         """
-#
-#     test_data = deepcopy(request_data)
-#
-#     # Modify
-#     test_data["data"]["mf"]["wel"]["stress_period_data"] = {}
-#
-#     with open(FILE_TEST1_TEST2) as f:
-#         expected_data = json.load(f)
-#
-#     flopy_data_model = ModflowDataModel(data=test_data["data"])
-#
-#     flopy_data_model.add_objects(test_data["optimization"]["objects"])
-#
-#     assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]
-#
-#
-# def test_add_well_3():
-#     """ Test for adding an additional well on an existing position in wel package
-#     """
-#
-#     # No further changes
-#     test_data = deepcopy(request_data)
-#
-#     with open(FILE_TEST3) as f:
-#         expected_data = json.load(f)
-#
-#     flopy_data_model = ModflowDataModel(data=test_data["data"])
-#
-#     flopy_data_model.add_objects(test_data["optimization"]["objects"])
-#
-#     assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]
-#
-#
-# def test_add_well_4():
-#     """ Test for adding an additional well on a different position then the ones existing
-#     """
-#
-#     test_data = deepcopy(request_data)
-#
-#     # Modify the location of the added well
-#     well = test_data["optimization"]["objects"][0]
-#     well["position"]["row"]["result"] = 39
-#     well["position"]["col"]["result"] = 74
-#     well["position"]["lay"]["result"] = 0
-#
-#     with open(FILE_TEST4) as f:
-#         expected_data = json.load(f)
-#
-#     flopy_data_model = ModflowDataModel(data=test_data["data"])
-#
-#     flopy_data_model.add_objects(test_data["optimization"]["objects"])
-#
-#     assert flopy_data_model.get_package("mf", "wel") == expected_data["wel"]
+def test_modflowdatamodel_add_well_out_of_bounds():
+    """ Test for adding a well which is not sticking to the model bounds
+    """
+
+    model = ModflowDataModel(
+        {"mf": {
+            "dis":{"nlay": 1, "nrow": 1, "ncol": 1, "nper": 1},
+            "wel": {
+                "stress_period_data": {
+                    "0": [[0, 0, 0, 0]]
+                }
+            }
+        }})
+
+    # Test for: out of bounds lay, row, col
+    with pytest.raises(ValueError):
+        model.add_well(1, 1, 1, [1000])
+
+    # test for: out of bounds pumping rates
+    with pytest.raises(ValueError):
+        model.add_well(0, 0, 0, [1000, 1000.0])
+
+    # test for: types
+    with pytest.raises(TypeError):
+        model.add_well(0, 0, 0, ["1000"])
+
+    with pytest.raises(TypeError):
+        model.add_well("1", 0, 0, [1000])
+
+
+def test_modflowdatamodel_add_objects():
+    """ Test for adding several objects at once
+    """
+
+    model = ModflowDataModel(
+        {"mf": {
+            "dis": {"nlay": 2, "nrow": 2, "ncol": 2, "nper": 1},
+            "wel": {
+                "stress_period_data": {
+                    "0": [[0, 0, 0, 0]]
+                }
+            }
+        }})
+
+    # test for: KeyError not finding "result" in lay, row, col, flux
+    with pytest.raises(KeyError):
+        model.add_objects([
+          {
+            "id": "e47d91d9-332e-45f0-8c67-b6e9cdf1c5ad",
+            "type": "wel",
+            "position": {
+              "row": {
+                "min": 0,
+                "max": 1
+              },
+              "col": {
+                "min": 0,
+                "max": 1
+              },
+              "lay": {
+                "min": 0,
+                "max": 1
+              }
+            },
+            "flux": {
+              "0": {
+                "min": 1000,
+                "max": 1000
+              }
+            }
+          }
+        ])
+
+    model.add_objects([
+        {
+            "id": "e47d91d9-332e-45f0-8c67-b6e9cdf1c5ad",
+            "type": "wel",
+            "position": {
+                "row": {
+                    "min": 0,
+                    "max": 1,
+                    "result": 0
+                },
+                "col": {
+                    "min": 0,
+                    "max": 1,
+                    "result": 0
+                },
+                "lay": {
+                    "min": 0,
+                    "max": 1,
+                    "result": 0
+                }
+            },
+            "flux": {
+                "0": {
+                    "min": 1000,
+                    "max": 1000,
+                    "result": 1000
+                }
+            }
+        },
+        {
+            "id": "732c2c05-3510-4cb4-826f-ea2ce4c487e1",
+            "type": "wel",
+            "position": {
+                "row": {
+                    "min": 0,
+                    "max": 1,
+                    "result": 1
+                },
+                "col": {
+                    "min": 0,
+                    "max": 1,
+                    "result": 1
+                },
+                "lay": {
+                    "min": 0,
+                    "max": 1,
+                    "result": 1
+                }
+            },
+            "flux": {
+                "0": {
+                    "min": 1000,
+                    "max": 1000,
+                    "result": 1000
+                }
+            }
+        }
+    ])
+
+    assert model.data == {"mf": {
+            "dis": {"nlay": 2, "nrow": 2, "ncol": 2, "nper": 1},
+            "wel": {
+                "stress_period_data": {
+                    "0": [[0, 0, 0, 1000], [1, 1, 1, 1000]]
+                }
+            }
+        }}

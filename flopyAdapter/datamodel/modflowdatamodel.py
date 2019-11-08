@@ -6,10 +6,10 @@ Author: Ralf Junghanns / Benjamin Gutzmann
 EMail: ralf.junghanns@gmail.com
 """
 
+from typing import Optional, List, Union
 from pathlib import PurePosixPath
 import json
-from jsonschema import Draft7Validator, RefResolver
-from urllib.request import urlopen
+from jsonschema import Draft7Validator, RefResolver, ValidationError, RefResolutionError
 from hashlib import md5
 
 from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
@@ -18,13 +18,19 @@ from flopyAdapter.flopy_adapter.flopy_fitnessadapter import FlopyFitnessAdapter
 from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
 
 
+SUPPORTED_OBJECTTYPES_FOR_ADDING = ["wel"]
+
+
 def sort_dictionary(dictionary: dict,
                     recursive: bool):
     """ Function to (recursively) sort dictionaries used for package data. This procedure is used to ensure
-    that every time models produce the same hash independent if the order of the keys in the dictionaries.
+    that models always produce the same hash independent of the order of the keys in the dictionaries.
+    Sorting is done by the Python internal sorting methods depending on the data. This means sorting only
+    works for keys with same type and otherwise will throw a TypeError.
 
     """
-    assert isinstance(dictionary, dict), "Error: input is not of type dict"
+    if not isinstance(dictionary, dict):
+        raise TypeError("Error: input is not of type dict")
 
     if recursive:
         for key, value in dictionary.items():
@@ -55,14 +61,47 @@ class ModflowDataModel:
         self._data = data
 
     @staticmethod
-    def from_data(data, schema, resolver):
+    def from_data(data: dict,
+                  schema: dict,
+                  resolver: Optional[RefResolver] = None):
+        """ Function to instantiate the model with data that is first validated before the model
+        is created with the data itself
+
+        Args:
+            data (dict) - the model data consisting of modflow packages in flopy shape
+            schema (dict) - the schema that the data is tested against. Using a function argument
+            ensures that the schema is always up to date as it first has to be downloaded
+            resolver (RefResolver) - the resolver for subschemas as defined in the file itself
+        Returns:
+
+        """
+        if not isinstance(data, dict):
+            raise TypeError("Error: data is not a json/dictionary.")
+        if not isinstance(schema, dict):
+            raise TypeError("Error: schema is not a json/dictionary.")
+
         ModflowDataModel.validate(data, schema, resolver)
 
         return ModflowDataModel(data)
 
     @staticmethod
     def validate(data, schema, resolver):
-        Draft7Validator(schema=schema, resolver=resolver).validate(data)
+        """ Function to validate model data before instantiating
+
+        Args:
+            same as in from_data
+
+        Returns:
+            None - if data is valid, otherwise certain errors are thrown
+
+        """
+        try:
+            # if valid returns None
+            return Draft7Validator(schema=schema, resolver=resolver).validate(data)
+        except ValidationError:
+            raise ValidationError("Error: data couldn't be validated.")
+        except RefResolutionError:
+            raise RefResolutionError("Error: schema references couldn't be solved.")
 
     @property
     def data(self):
@@ -144,8 +183,12 @@ class ModflowDataModel:
 
         """
 
+        # todo schema validation
+
         for obj in objects:
-            assert obj["type"] in ["wel"], f"Error: object has unknown type {obj['type']}"
+            if obj["type"] not in SUPPORTED_OBJECTTYPES_FOR_ADDING:
+                raise ValueError(f"Error: object has unknown type {obj['type']}."
+                                 f"Currently only 'wel' is supported.")
 
             if obj["type"] == "wel":
                 lay = obj["position"]["lay"]["result"]
@@ -155,16 +198,25 @@ class ModflowDataModel:
 
                 self.add_well(lay=lay, row=row, col=col, pumping_rates=pumping_rates)
 
-    def add_well(self, lay, row, col, pumping_rates):
-        bound_error_message = f"Error: {0} {1} out of bounds which are [0, {2}] for nlay {3}"
-        if lay not in range(self.nlay):
-            raise ValueError(bound_error_message.format("layer", lay, self.nlay - 1, self.nlay))
-        if row not in range(self.nrow):
-            raise ValueError(bound_error_message.format("row", row, self.nrow - 1, self.nrow))
-        if col not in range(self.ncol):
-            raise ValueError(bound_error_message.format("layer", lay, self.nlay - 1, self.nlay))
+    def add_well(self,
+                 lay: int,
+                 row: int,
+                 col: int,
+                 pumping_rates: List[Union[int, float]]):
+        if not isinstance(lay, int) or not isinstance(row, int) or not isinstance(col, int):
+            raise TypeError(f"Error: type of lay {type(lay)}, type of row {type(row)},"
+                            f"type of col {type(col)}, expected int for all.")
+        if not isinstance(pumping_rates, list):
+            raise TypeError(f"Error: pumping rates are of type {type(pumping_rates)}, should be list.")
+        if not all([isinstance(rate, (int, float)) for rate in pumping_rates]):
+            raise TypeError("Error: pumping rates should all be of type int/float")
+
+        if lay not in range(self.nlay) or row not in range(self.nrow) or col not in range(self.ncol):
+            raise ValueError(f"Error: bounds lay: {lay}, row: {row}, col: {col} are incorrect."
+                             f"Model is limited to {self.nlay} layers, {self.nrow} rows and {self.ncol} cols.")
         if len(pumping_rates) != self.nper:
-            raise ValueError(f"Error: number of pumping rates is {len(pumping_rates)} not equal to nper={self.nper}")
+            raise ValueError(f"Error: number of pumping rates is {len(pumping_rates)} not equal to "
+                             f"nper={self.nper}")
 
         if "wel" not in self.data["mf"]:
             self.data["mf"]["packages"].extend("wel")
@@ -187,5 +239,4 @@ class ModflowDataModel:
                 same_position_flux[0][3] += period_flux[3]
                 continue
 
-            self.data["mf"]["wel"]["stress_period_data"][period].append(period_flux)
-
+            self.data["mf"]["wel"]["stress_period_data"][str(period)].append(period_flux)
