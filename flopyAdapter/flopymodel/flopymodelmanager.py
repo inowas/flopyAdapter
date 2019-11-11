@@ -5,16 +5,27 @@ EMail: ralf.junghanns@gmail.com
 
 """
 
+from typing import Optional
 
-class FlopyModel:
+from flopyAdapter.datamodel.modflowdatamodel import ModflowDataModel
+from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
+from flopyAdapter.flopy_adapter.flopy_calculationadapter import FlopyCalculationAdapter
+from flopyAdapter.flopy_adapter.flopy_fitnessadapter import FlopyFitnessAdapter
+from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
+
+
+class FlopyModelManager:
+    """
+
+    """
     _regular_order = ["mf", "mt", "mp"]
-    _flopy_model_order = ["swt", *_regular_order]
+    _flopy_packageorder = ["swt", *_regular_order]
 
     _version = None
     _uuid = None
 
-    _flopy_models = {}
-    _flopy_models_success = {}
+    _flopy_packages = {}
+    _flopy_packages_success = {}
 
     _report = ''
 
@@ -35,10 +46,31 @@ class FlopyModel:
         "mp": ['mp', 'bas', 'sim']
     }
 
-    def __init__(self):
-        pass
+    def __init__(self,
+                 modflowdatamodel: ModflowDataModel):
+        self.modflowdatamodel = modflowdatamodel
 
-    def build_flopy_models(self):
+    @staticmethod
+    def from_modflowdatamodel(model: ModflowDataModel):
+        if not isinstance(model, ModflowDataModel):
+            raise TypeError("Error: model is not a ModflowDataModel.")
+
+        return FlopyModelManager(model)
+
+    @staticmethod
+    def from_hash(hash: str,
+                  model_ws: str = "./"):
+        if not isinstance(hash, str):
+            raise TypeError("Error: hash is not a string.")
+
+
+
+
+    @property
+    def flopy_packages(self):
+        return self._flopy_packages
+
+    def build_flopymodel(self):
         """Builds the flopy models based on what's found in the model data. The existing packages also
         have impact on which flopy models are created (either only swt or a followup of mf, mt, mp)
 
@@ -51,27 +83,27 @@ class FlopyModel:
 
         """
 
-        if self.flopy_models_data["swt"]:
+        if "swt" in self.modflowdatamodel:  # if data has "swt"
             package_data = {
-                **self.flopy_models_data["mf"],
-                **self.flopy_models_data["mt"],
-                **self.flopy_models_data["swt"],
-                'packages': [*self.flopy_models_data["mf"]['packages'],
-                             *self.flopy_models_data["mt"]['packages'],
-                             *self.flopy_models_data["swt"]['packages']]
+                **self.modflowdatamodel["mf"],
+                **self.modflowdatamodel["mt"],
+                **self.modflowdatamodel["swt"],
+                'packages': [*self.modflowdatamodel["mf"]['packages'],
+                             *self.modflowdatamodel["mt"]['packages'],
+                             *self.modflowdatamodel["swt"]['packages']]
             }
 
             package_content = self.read_packages(package_data)
 
-            self._flopy_models["swt"] = self.create_model(self.package_orders["swt"], package_content)
+            self._flopy_packages["swt"] = self.create_flopy_package(self.package_orders["swt"], package_content)
 
         else:
             for model in self._regular_order:
-                if self.flopy_models_data[model]:
+                if model in self.modflowdatamodel:
                     # Basic data model is needed by both mt and mp
-                    package_content = self.read_packages(self.flopy_models_data[model])
+                    package_content = self.read_packages(self.modflowdatamodel[model])
 
-                    self._flopy_models[model] = self.create_model(self.package_orders[model], package_content)
+                    self._flopy_packages[model] = self.create_flopy_package(self.package_orders[model], package_content)
 
     @staticmethod
     def read_packages(data):
@@ -81,7 +113,7 @@ class FlopyModel:
             package_content[package.lower()] = data[package]
         return package_content
 
-    def create_model(self, package_order, package_content):
+    def create_flopy_package(self, package_order, package_content):
         model = None
         for package in package_order:
             if package in package_content:
@@ -89,7 +121,7 @@ class FlopyModel:
                     print(f'Create Flopy Model: {package}')
                     if model == "mt":
                         # In opposition to the other models mt needs the modflow mf data model as basis
-                        model = self.create_package(package, package_content[package], self._flopy_models["mf"])
+                        model = self.create_package(package, package_content[package], self._flopy_packages["mf"])
                     else:
                         model = self.create_package(package, package_content[package])
                 else:
@@ -109,14 +141,14 @@ class FlopyModel:
         else:
             adapter(content).get_package(*model)
 
-    @staticmethod
-    def write_input_model(model):
-        print('Write input files.')
-        model.write_input()
+    # @staticmethod
+    # def write_input_model(model):
+    #     print('Write input files.')
+    #     model.write_input()
 
-    def run_models(self):
-        for model_type, model in self._flopy_models.items():
-            calculation_adapter = InowasFlopyCalculationAdapter(model, model_type)
+    def run_model(self):
+        for package_type, package in self._flopy_packages.items():
+            calculation_adapter = FlopyCalculationAdapter(package)
 
             calculation_adapter.check_model()
 
@@ -124,28 +156,28 @@ class FlopyModel:
 
             calculation_adapter.run_model()
 
-            if model_type in ["swt", "mf"] and 'hob' in self.flopy_models_data["mf"]['packages']:
+            if package_type in ["swt", "mf"] and 'hob' in self.modflowdatamodel["mf"]['packages']:
                 print(f'Calculate hob-statistics and write to file {self._uuid}.hob.stat')
-                self.run_hob_statistics(model)
+                self.run_hob_statistics(package)
 
             calculation_success, calculation_report = calculation_adapter.get_success_and_report()
 
-            self._flopy_models_success[model_type] = calculation_success
+            self._flopy_packages_success[package_type] = calculation_success
 
-            self._report += calculation_report
+            # self._report += calculation_report
 
-    def get_fitness(self,
-                    objectives: list,
-                    constraints: list,
-                    objects: list) -> Optional[float]:
-        overall_success = [self._flopy_models_success[model_type] for model_type in self._flopy_models]
+    def get_model_fitness(self,
+                          objectives: list,
+                          constraints: list,
+                          objects: list) -> Optional[float]:
+        overall_success = [self._flopy_packages_success[model_type] for model_type in self._flopy_packages]
 
         if all(overall_success):
-            fitness_adapter = InowasFlopyReadFitness(objectives, constraints, objects, self._flopy_models["mf"])
+            fitness_adapter = FlopyFitnessAdapter(objectives, constraints, objects, self._flopy_packages["mf"])
 
             return fitness_adapter.get_fitness()
-        else:
-            return None
+
+        return None
 
     @staticmethod
     def run_hob_statistics(model):

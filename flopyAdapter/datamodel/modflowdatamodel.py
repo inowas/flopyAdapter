@@ -31,6 +31,8 @@ def sort_dictionary(dictionary: dict,
     """
     if not isinstance(dictionary, dict):
         raise TypeError("Error: input is not of type dict")
+    if not isinstance(recursive, bool):
+        raise TypeError("Error: recursive is not of type bool")
 
     if recursive:
         for key, value in dictionary.items():
@@ -136,7 +138,8 @@ class ModflowDataModel:
         except KeyError:
             raise KeyError(f'Error: package {name} not found in module {mf_module}.')
 
-    def create_hash(self) -> str:
+    @property
+    def md5_hash(self) -> str:
         """ Function to create a md5-hash of the model data. We expect the general model to be
 
         Args:
@@ -149,7 +152,7 @@ class ModflowDataModel:
 
         ordered_model_data = sort_dictionary(self.data, recursive=True)
 
-        return md5(json.dumps(ordered_model_data).econde("utf-8")).hexdigest()
+        return md5(json.dumps(ordered_model_data).encode("utf-8")).hexdigest()
 
     # Attributes accessor
     @property

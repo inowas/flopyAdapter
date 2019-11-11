@@ -27,7 +27,7 @@ class FlopyFitnessAdapter:
                  objectives: list,
                  constraints: list,
                  objects: list,
-                 flopy_adapter: flopy.modflow.mf.Modflow):
+                 flopy_adapter: flopy.modflow.Modflow):
 
         self.objectives = objectives
         self.constraints = constraints
@@ -38,6 +38,22 @@ class FlopyFitnessAdapter:
         self.model_ws = flopy_adapter.model_ws  # _mf.
         self.model_name = flopy_adapter.namefile.split('.')[0]  # _mf.
         # self.objects = self.optimization_data['objects']
+
+    @staticmethod
+    def from_data(objectives: list,
+                  constraints: list,
+                  objects: list,
+                  flopy_adapter: flopy.modflow.Modflow):
+        if not isinstance(objectives, list):
+            raise TypeError(f"Error: objectives is of type {type(objectives)}, should be of type list.")
+        if not isinstance(constraints, list):
+            raise TypeError(f"Error: constraints is of type {type(constraints)}, should be of type list.")
+        if not isinstance(objects, list):
+            raise TypeError(f"Error: objects is of type {type(objects)}, should be of type list.")
+        if not isinstance(flopy_adapter, flopy.modflow.Modflow):
+            raise TypeError(f"Error: flopy_adapter is of type {type(flopy_adapter)}, should be Modflow object.")
+
+        return FlopyFitnessAdapter(objectives, constraints, objects, flopy_adapter)
 
     def get_fitness(self):
         objectives_values = self.read_objectives()

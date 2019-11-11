@@ -221,3 +221,10 @@ def test_modflowdatamodel_add_objects():
                 }
             }
         }}
+
+
+def test_modflowdatamodel_md5_hash():
+    test_data = deepcopy(modflowmodeldata)
+
+    # test for: md5 hash of sorted model (encoded with utf-8)
+    assert ModflowDataModel(test_data).md5_hash == "1a767e066f862b61a9cb172ef95401ef"

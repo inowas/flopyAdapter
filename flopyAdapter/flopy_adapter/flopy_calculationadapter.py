@@ -6,12 +6,18 @@ Author: Ralf Junghanns
 EMail: ralf.junghanns@gmail.com
 """
 
-from flopyAdapter.flopy_adapter.flopy_read_classes.readbudget import ReadBudget
-from flopyAdapter.flopy_adapter.flopy_read_classes.readconcentration import ReadConcentration
-from flopyAdapter.flopy_adapter.flopy_read_classes.readdrawdown import ReadDrawdown
-from flopyAdapter.flopy_adapter.flopy_read_classes.readhead import ReadHead
+from flopy.modflow.mf import Modflow
+from flopy.modpath.mp import Modpath
+from flopy.modpath.mpbas import ModpathBas
+from flopy.modpath.mpsim import ModpathSim
+from flopy.mt3d import Mt3dms
 
-from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
+# from flopyAdapter.flopy_adapter.flopy_read_classes.readbudget import ReadBudget
+# from flopyAdapter.flopy_adapter.flopy_read_classes.readconcentration import ReadConcentration
+# from flopyAdapter.flopy_adapter.flopy_read_classes.readdrawdown import ReadDrawdown
+# from flopyAdapter.flopy_adapter.flopy_read_classes.readhead import ReadHead
+#
+# from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
 
 
 class FlopyCalculationAdapter:
@@ -21,30 +27,38 @@ class FlopyCalculationAdapter:
     _success = None
 
     def __init__(self,
-                 model,
-                 model_type):
-        # todo checks for input
+                 model):  # , model_type
 
-        self.model = model
-        self.model_type = model_type
+        self._model = model
+        # self.model_type = model_type
+
+    @staticmethod
+    def from_flopymodel(model):
+        if not isinstance(model, (Modflow, Modpath, ModpathBas, ModpathSim, Mt3dms)):
+            raise TypeError(f"Error: model is of type {type(model)}, "
+                            "expected Modflow/Modpath/ModpathBas/ModpathSim/Mt3dms.")
+
+        # model.check()
+
+        return FlopyCalculationAdapter(model)
 
     def check_model(self):
-        if self.model:
-            self.model.check()
+        if self._model:
+            self._model.check()
 
     def write_input_model(self):
         print('Write input files.')
-        self.model.write_input()
+        self._model.write_input()
 
-    def run_model(self):
+    def run_calculation(self):
         normal_msg = 'Normal termination'
-        if self.model_type == 'mt':
-            normal_msg = 'Program completed'
+        # if self.model_type == 'mt':
+        #     normal_msg = 'Program completed'
 
         print('Run datamodel.')
-        print(f'Model nam-file: {self.model.namefile}.')
-        print(f'Model executable: {self.model.exe_name}.')
-        self._success, report = self.model.run_model(report=True, silent=True, normal_msg=normal_msg)
+        print(f'Model nam-file: {self._model.namefile}.')
+        print(f'Model executable: {self._model.exe_name}.')
+        self._success, report = self._model.run_model(report=True, silent=True, normal_msg=normal_msg)
 
         self._report = ' \n'.join(str(e) for e in report)
 
