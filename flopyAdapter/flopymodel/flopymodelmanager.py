@@ -5,7 +5,7 @@ EMail: ralf.junghanns@gmail.com
 
 """
 
-from typing import Optional
+from typing import Optional, Dict, Any
 
 from flopyAdapter.datamodel.modflowdatamodel import ModflowDataModel
 from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
@@ -18,37 +18,41 @@ class FlopyModelManager:
     """
 
     """
-    _regular_order = ["mf", "mt", "mp"]
-    _flopy_packageorder = ["swt", *_regular_order]
 
-    _version = None
-    _uuid = None
+    def __init__(self,
+                 modflowdatamodel: ModflowDataModel,
+                 version: str = None,
+                 uuid: str = None):
 
-    _flopy_packages = {}
-    _flopy_packages_success = {}
+        self._modflowdatamodel = modflowdatamodel
 
-    _report = ''
+        self._regular_order = ["mf", "mt", "mp"]
+        self._flopy_packageorder = ["swt", *self._regular_order]
 
-    package_orders = {
-        "mf": ['mf', 'dis', 'bas', 'bas6',
-               'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
-               'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'],
-        "mt":  ['mf', 'dis', 'bas', 'bas6',
-                'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
-                'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'],
-        "swt": [# Modflow
+        self._version = version
+        self._uuid = uuid
+
+        self._flopy_packages = {}
+        self._flopy_packages_success = {}
+
+        # self._report = ''
+
+        self.package_orders = {
+            "mf": ['mf', 'dis', 'bas', 'bas6',
+                   'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
+                   'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'],
+            "mt": ['mf', 'dis', 'bas', 'bas6',
+                   'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
+                   'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'],
+            "swt": [  # Modflow
                 'swt', 'dis', 'bas', 'bas6', 'riv', 'wel', 'rch', 'chd', 'ghb', 'hob',
                 'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6',
                 # Mt3D
                 'btn', 'adv', 'dsp', 'gcg', 'ssm', 'lkt', 'phc', 'rct', 'sft', 'tob', 'uzt',
                 # Seawat
                 'vdf', 'vsc'],
-        "mp": ['mp', 'bas', 'sim']
-    }
-
-    def __init__(self,
-                 modflowdatamodel: ModflowDataModel):
-        self.modflowdatamodel = modflowdatamodel
+            "mp": ['mp', 'bas', 'sim']
+        }
 
     @staticmethod
     def from_modflowdatamodel(model: ModflowDataModel):
@@ -56,15 +60,12 @@ class FlopyModelManager:
             raise TypeError("Error: model is not a ModflowDataModel.")
 
         return FlopyModelManager(model)
-
-    @staticmethod
-    def from_hash(hash: str,
-                  model_ws: str = "./"):
-        if not isinstance(hash, str):
-            raise TypeError("Error: hash is not a string.")
-
-
-
+    #
+    # @staticmethod
+    # def from_hash(hash: str,
+    #               model_ws: str = "./"):
+    #     if not isinstance(hash, str):
+    #         raise TypeError("Error: hash is not a string.")
 
     @property
     def flopy_packages(self):
@@ -83,14 +84,14 @@ class FlopyModelManager:
 
         """
 
-        if "swt" in self.modflowdatamodel:  # if data has "swt"
+        if "swt" in self._modflowdatamodel.data:  # if data has "swt"
             package_data = {
-                **self.modflowdatamodel["mf"],
-                **self.modflowdatamodel["mt"],
-                **self.modflowdatamodel["swt"],
-                'packages': [*self.modflowdatamodel["mf"]['packages'],
-                             *self.modflowdatamodel["mt"]['packages'],
-                             *self.modflowdatamodel["swt"]['packages']]
+                **self._modflowdatamodel.data["mf"],
+                **self._modflowdatamodel.data["mt"],
+                **self._modflowdatamodel.data["swt"],
+                'packages': [*self._modflowdatamodel.data["mf"]['packages'],
+                             *self._modflowdatamodel.data["mt"]['packages'],
+                             *self._modflowdatamodel.data["swt"]['packages']]
             }
 
             package_content = self.read_packages(package_data)
@@ -99,9 +100,9 @@ class FlopyModelManager:
 
         else:
             for model in self._regular_order:
-                if model in self.modflowdatamodel:
+                if model in self._modflowdatamodel.data:
                     # Basic data model is needed by both mt and mp
-                    package_content = self.read_packages(self.modflowdatamodel[model])
+                    package_content = self.read_packages(self._modflowdatamodel.data[model])
 
                     self._flopy_packages[model] = self.create_flopy_package(self.package_orders[model], package_content)
 
@@ -154,30 +155,15 @@ class FlopyModelManager:
 
             calculation_adapter.write_input_model()
 
-            calculation_adapter.run_model()
+            calculation_adapter.run_calculation()
 
-            if package_type in ["swt", "mf"] and 'hob' in self.modflowdatamodel["mf"]['packages']:
+            if package_type in ["swt", "mf"] and 'hob' in self._modflowdatamodel.data["mf"]['packages']:
                 print(f'Calculate hob-statistics and write to file {self._uuid}.hob.stat')
                 self.run_hob_statistics(package)
 
             calculation_success, calculation_report = calculation_adapter.get_success_and_report()
 
             self._flopy_packages_success[package_type] = calculation_success
-
-            # self._report += calculation_report
-
-    def get_model_fitness(self,
-                          objectives: list,
-                          constraints: list,
-                          objects: list) -> Optional[float]:
-        overall_success = [self._flopy_packages_success[model_type] for model_type in self._flopy_packages]
-
-        if all(overall_success):
-            fitness_adapter = FlopyFitnessAdapter(objectives, constraints, objects, self._flopy_packages["mf"])
-
-            return fitness_adapter.get_fitness()
-
-        return None
 
     @staticmethod
     def run_hob_statistics(model):

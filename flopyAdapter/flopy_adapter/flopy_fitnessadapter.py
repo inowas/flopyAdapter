@@ -4,11 +4,11 @@ Calculation of objective values of a datamodel
 Author: Aybulat Fatkhutdinov / Benjamin Gutzmann
 """
 
+from typing import Union
 import os
-import pathlib
+from pathlib import Path
 import math
 import numpy as np
-from typing import Union
 import flopy
 
 
@@ -16,44 +16,76 @@ class FlopyFitnessAdapter:
     """Calculation of objective values of a datamodel
 
     Args:
-        objectives () -
-        constraints () -
-        objects () -
+        optimization_data () -
         flopy_adapter () -
 
     """
 
     def __init__(self,
-                 objectives: list,
-                 constraints: list,
-                 objects: list,
+                 optimization_data: dict,
                  flopy_adapter: flopy.modflow.Modflow):
 
-        self.objectives = objectives
-        self.constraints = constraints
-        self.objects = objects
-        # self.optimization_data = optimization_data
+        self.objectives = optimization_data.get("objectives")
+        self.constraints = optimization_data.get("constraints")
+        self.objects = optimization_data.get("objects")
 
         self.dis_package = flopy_adapter.get_package('DIS')  # _mf.
         self.model_ws = flopy_adapter.model_ws  # _mf.
         self.model_name = flopy_adapter.namefile.split('.')[0]  # _mf.
-        # self.objects = self.optimization_data['objects']
+
+        print(f"model_ws: {self.model_ws}")
+        print(f"model_name: {self.model_name}")
 
     @staticmethod
-    def from_data(objectives: list,
-                  constraints: list,
-                  objects: list,
+    def from_id(optimization_data: dict,
+                calculation_id: str,
+                folder: Union[str, Path] = "."):
+        if not isinstance(calculation_id, str):
+            raise TypeError("calculation_id expected to be a string.")
+        if not isinstance(folder, (str, Path)):
+            raise TypeError("folder expected to be a string.")
+
+        folder_path = Path(folder) / calculation_id
+
+        try:
+            if not folder_path.is_dir():
+                raise NotADirectoryError
+            nam_file = str(list(folder_path.glob("*.nam"))[0])
+
+        except NotADirectoryError:
+            raise NotADirectoryError(f"{folder_path} is not a valid directory.")
+        except IndexError:
+            raise FileNotFoundError("folder seems to have no namfile in it.")
+
+        try:
+            print(folder_path / nam_file)
+            flopy_adapter = flopy.modflow.Modflow.load(nam_file, model_ws=folder_path)
+        except IOError:
+            raise IOError("namfile couldn't be opened.")
+        except Exception:
+            raise Exception(f"general problem with loading the model from namfile {nam_file}.")
+
+        return FlopyFitnessAdapter.from_data(optimization_data, flopy_adapter)
+
+    @staticmethod
+    def from_data(optimization_data: dict,
                   flopy_adapter: flopy.modflow.Modflow):
-        if not isinstance(objectives, list):
-            raise TypeError(f"Error: objectives is of type {type(objectives)}, should be of type list.")
-        if not isinstance(constraints, list):
-            raise TypeError(f"Error: constraints is of type {type(constraints)}, should be of type list.")
-        if not isinstance(objects, list):
-            raise TypeError(f"Error: objects is of type {type(objects)}, should be of type list.")
+        if not isinstance(optimization_data, dict):
+            raise TypeError(f"optimization_data is of type {type(optimization_data)}, should be of type dict.")
+
+        for key in ["objectives", "constraints", "objects"]:
+            try:
+                if not isinstance(optimization_data[key], list):
+                    raise TypeError
+            except KeyError:
+                raise KeyError(f"optimization_data doesn't hold {key}.")
+            except TypeError:
+                raise TypeError(f"{key} are not a list.")
+
         if not isinstance(flopy_adapter, flopy.modflow.Modflow):
             raise TypeError(f"Error: flopy_adapter is of type {type(flopy_adapter)}, should be Modflow object.")
 
-        return FlopyFitnessAdapter(objectives, constraints, objects, flopy_adapter)
+        return FlopyFitnessAdapter(optimization_data, flopy_adapter)
 
     def get_fitness(self):
         objectives_values = self.read_objectives()
@@ -80,7 +112,6 @@ class FlopyFitnessAdapter:
         fitness = []
 
         for objective in self.objectives:
-            value = None
 
             if objective["type"] == "concentration":
                 mask = self.make_mask(
@@ -100,9 +131,15 @@ class FlopyFitnessAdapter:
             elif objective["type"] == "input_concentration":
                 value = self.read_input_concentration(objective, self.objects)
 
+            else:
+                value = None
+
+            if not value:
+                raise ValueError(f"objective type {objective['type']} is unknown")
+
             # if not value:
             #     print(f"Error: could not read objective for {objective['type']}.")
-            
+
             value = self.summary(value, objective["summary_method"])
             fitness.append(value.item())
 
@@ -122,7 +159,6 @@ class FlopyFitnessAdapter:
         constraints_exceeded = []
 
         for constraint in self.constraints:
-            value = None
 
             if constraint["type"] == 'head':
                 mask = self.make_mask(
@@ -149,6 +185,12 @@ class FlopyFitnessAdapter:
                 value = self.read_input_concentration(
                     constraint, self.objects
                 )
+
+            else:
+                value = None
+
+            if not value:
+                raise ValueError(f"constraint type {constraint['type']} is unknown")
             
             value = self.summary(value, constraint["summary_method"])
             
@@ -161,7 +203,8 @@ class FlopyFitnessAdapter:
                 
             elif constraint["operator"] == "more":
                 if value < constraint["value"]:
-                    print(f"Constraint value {value} lower than min value {constraint['value']}, penalty will be assigned")
+                    print(f"Constraint value {value} lower than min value {constraint['value']}, "
+                          f"penalty will be assigned")
                     constraints_exceeded.append(True)
                 else:
                     constraints_exceeded.append(False)
@@ -211,10 +254,10 @@ class FlopyFitnessAdapter:
         print(f'Read head values at location: {data["location"]}')
         
         try:
-            print(f"{pathlib.Path(model_ws, model_name)}.hds")
+            print(f"{Path(model_ws, model_name)}.hds")
 
             head_file_object = flopy.utils.HeadFile(
-                f"{pathlib.Path(model_ws, model_name)}.hds", verbose=True)
+                f"{Path(model_ws, model_name)}.hds", verbose=True)
 
             print("Read head.")
 
@@ -427,17 +470,17 @@ class FlopyFitnessAdapter:
         mask = None
 
         if location["type"] == 'bbox':
-            per_min = location.get('per_min', 0)
-            per_max = location.get('per_max', nstp_flat)
+            per_min = location.get("ts", {}).get('min', 0)
+            per_max = location.get("ts", {}).get('max', nstp_flat)
 
-            lay_min = location.get('lay_min', 0)
-            lay_max = location.get('lay_max', nlay)
+            lay_min = location.get("lay", {}).get('min', 0)
+            lay_max = location.get("lay", {}).get('max', nlay)
 
-            col_min = location.get('col_min', 0)
-            col_max = location.get('col_max', ncol)
+            col_min = location.get("col", {}).get('min', 0)
+            col_max = location.get("col", {}).get('max', ncol)
 
-            row_min = location.get('row_min', 0)
-            row_max = location.get('row_max', nrow)
+            row_min = location.get("row", {}).get('min', 0)
+            row_max = location.get("row", {}).get('max', nrow)
 
             if per_min == per_max:
                 per_max += 1

@@ -1,4 +1,5 @@
 import json
+from flopyAdapter.datamodel.modflowdatamodel import ModflowDataModel
 from flopyAdapter.flopymodel.flopymodelmanager import FlopyModelManager
 from flopyAdapter.flopy_adapter.flopy_calculationadapter import FlopyCalculationAdapter
 
@@ -8,9 +9,10 @@ with open(SAMPLE_FILE_WELL_WITH_SAME_POSITION) as f:
     modflowmodeldata = json.load(f)
 
 
-
 def test_flopy_calculation_adapter():
-    flopymodelmanager = FlopyModelManager(modflowmodeldata)
+
+    flopymodelmanager = FlopyModelManager(ModflowDataModel(modflowmodeldata))
+    flopymodelmanager.build_flopymodel()
 
     FlopyCalculationAdapter.from_flopymodel(model=flopymodelmanager.flopy_packages["mf"])
 
