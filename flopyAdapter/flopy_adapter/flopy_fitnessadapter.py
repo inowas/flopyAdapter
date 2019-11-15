@@ -4,47 +4,96 @@ Calculation of objective values of a datamodel
 Author: Aybulat Fatkhutdinov / Benjamin Gutzmann
 """
 
+from typing import Union
 import os
-import pathlib
+from pathlib import Path
 import math
 import numpy as np
-from typing import Union
 import flopy
 
 
-class InowasFlopyReadFitness:
+class FlopyFitnessAdapter:
     """Calculation of objective values of a datamodel
 
     Args:
-        objectives () -
-        constraints () -
-        objects () -
+        optimization_data () -
         flopy_adapter () -
 
     """
 
     def __init__(self,
-                 objectives: list,
-                 constraints: list,
-                 objects: list,
-                 flopy_adapter: flopy.modflow.mf.Modflow):
+                 optimization_data: dict,
+                 flopy_adapter: flopy.modflow.Modflow):
 
-        self.objectives = objectives
-        self.constraints = constraints
-        self.objects = objects
-        # self.optimization_data = optimization_data
+        self._objectives = optimization_data.get("objectives")
+        self._constraints = optimization_data.get("constraints")
+        self._objects = optimization_data.get("objects")
 
-        self.dis_package = flopy_adapter.get_package('DIS')  # _mf.
-        self.model_ws = flopy_adapter.model_ws  # _mf.
-        self.model_name = flopy_adapter.namefile.split('.')[0]  # _mf.
-        # self.objects = self.optimization_data['objects']
+        self._dis_package = flopy_adapter.get_package('DIS')  # _mf.
+        self._model_ws = flopy_adapter.model_ws  # _mf.
+        self._model_name = flopy_adapter.namefile.split('.')[0]  # _mf.
+
+        print(f"model_ws: {self._model_ws}")
+        print(f"model_name: {self._model_name}")
+
+    @staticmethod
+    def from_id(optimization_data: dict,
+                calculation_id: str,
+                folder: Union[str, Path] = "."):
+        # optimization_data not checked as this is done in .from_data
+        if not isinstance(calculation_id, str):
+            raise TypeError("calculation_id expected to be a string.")
+        if not isinstance(folder, (str, Path)):
+            raise TypeError("folder expected to be a string.")
+
+        folder_path = Path(folder) / calculation_id
+
+        try:
+            if not folder_path.is_dir():
+                raise NotADirectoryError
+            nam_file = str(list(folder_path.glob("*.nam"))[0])
+
+        except NotADirectoryError:
+            raise NotADirectoryError(f"{folder_path} is not a valid directory.")
+        except IndexError:
+            raise FileNotFoundError("folder seems to have no namfile in it.")
+
+        try:
+            flopy_adapter = flopy.modflow.Modflow.load(nam_file, model_ws=folder_path)
+            print(f"model namfile {nam_file} located in folder {folder_path}")
+        except IOError:
+            raise IOError("namfile couldn't be opened.")
+        except Exception:
+            raise Exception(f"general problem with loading the model from namfile {nam_file}.")
+
+        return FlopyFitnessAdapter.from_data(optimization_data, flopy_adapter)
+
+    @staticmethod
+    def from_data(optimization_data: dict,
+                  flopy_adapter: flopy.modflow.Modflow):
+        if not isinstance(optimization_data, dict):
+            raise TypeError(f"optimization_data is of type {type(optimization_data)}, should be of type dict.")
+
+        for key in ["objectives", "constraints", "objects"]:
+            try:
+                if not isinstance(optimization_data[key], list):
+                    raise TypeError
+            except KeyError:
+                raise KeyError(f"optimization_data doesn't hold {key}.")
+            except TypeError:
+                raise TypeError(f"{key} are not a list.")
+
+        if not isinstance(flopy_adapter, flopy.modflow.Modflow):
+            raise TypeError(f"Error: flopy_adapter is of type {type(flopy_adapter)}, should be Modflow object.")
+
+        return FlopyFitnessAdapter(optimization_data, flopy_adapter)
 
     def get_fitness(self):
         objectives_values = self.read_objectives()
         constraints_exceeded = self.check_constraints()
 
         if True in constraints_exceeded or None in objectives_values:
-            fitness = [obj["penalty_value"] for obj in self.objectives]
+            fitness = [obj["penalty_value"] for obj in self._objectives]
         else:
             fitness = objectives_values
 
@@ -63,30 +112,35 @@ class InowasFlopyReadFitness:
 
         fitness = []
 
-        for objective in self.objectives:
-            value = None
+        for objective in self._objectives:
 
             if objective["type"] == "concentration":
                 mask = self.make_mask(
-                    objective["location"], self.objects, self.dis_package
+                    objective["location"], self._objects, self._dis_package
                 )
-                value = self.read_concentration(objective, mask, self.model_ws, self.model_name)
+                value = self.read_concentration(objective, mask, self._model_ws, self._model_name)
 
             elif objective["type"] == "head":
                 mask = self.make_mask(
-                    objective["location"], self.objects, self.dis_package
+                    objective["location"], self._objects, self._dis_package
                 )
-                value = self.read_head(objective, mask, self.model_ws, self.model_name)
+                value = self.read_head(objective, mask, self._model_ws, self._model_name)
 
             elif objective["type"] == "flux":
-                value = self.read_flux(objective, self.objects)
+                value = self.read_flux(objective, self._objects)
 
             elif objective["type"] == "input_concentration":
-                value = self.read_input_concentration(objective, self.objects)
+                value = self.read_input_concentration(objective, self._objects)
+
+            else:
+                value = None
+
+            if not value:
+                raise ValueError(f"objective type {objective['type']} is unknown")
 
             # if not value:
             #     print(f"Error: could not read objective for {objective['type']}.")
-            
+
             value = self.summary(value, objective["summary_method"])
             fitness.append(value.item())
 
@@ -105,34 +159,39 @@ class InowasFlopyReadFitness:
 
         constraints_exceeded = []
 
-        for constraint in self.constraints:
-            value = None
+        for constraint in self._constraints:
 
             if constraint["type"] == 'head':
                 mask = self.make_mask(
-                    constraint["location"], self.objects, self.dis_package    
+                    constraint["location"], self._objects, self._dis_package
                 )
                 value = self.read_head(
-                    constraint, mask, self.model_ws, self.model_name
+                    constraint, mask, self._model_ws, self._model_name
                 )
    
             elif constraint["type"] == 'concentration':
                 mask = self.make_mask(
-                    constraint["location"], self.objects, self.dis_package    
+                    constraint["location"], self._objects, self._dis_package
                 )
                 value = self.read_concentration(
-                    constraint, mask, self.model_ws, self.model_name
+                    constraint, mask, self._model_ws, self._model_name
                 )
             
             elif constraint["type"] == "flux":
                 value = self.read_flux(
-                    constraint, self.objects
+                    constraint, self._objects
                 )
             
             elif constraint["type"] == "input_concentrations":
                 value = self.read_input_concentration(
-                    constraint, self.objects
+                    constraint, self._objects
                 )
+
+            else:
+                value = None
+
+            if not value:
+                raise ValueError(f"constraint type {constraint['type']} is unknown")
             
             value = self.summary(value, constraint["summary_method"])
             
@@ -145,7 +204,8 @@ class InowasFlopyReadFitness:
                 
             elif constraint["operator"] == "more":
                 if value < constraint["value"]:
-                    print(f"Constraint value {value} lower than min value {constraint['value']}, penalty will be assigned")
+                    print(f"Constraint value {value} lower than min value {constraint['value']}, "
+                          f"penalty will be assigned")
                     constraints_exceeded.append(True)
                 else:
                     constraints_exceeded.append(False)
@@ -195,10 +255,10 @@ class InowasFlopyReadFitness:
         print(f'Read head values at location: {data["location"]}')
         
         try:
-            print(f"{pathlib.Path(model_ws, model_name)}.hds")
+            print(f"{Path(model_ws, model_name)}.hds")
 
             head_file_object = flopy.utils.HeadFile(
-                f"{pathlib.Path(model_ws, model_name)}.hds", verbose=True)
+                f"{Path(model_ws, model_name)}.hds", verbose=True)
 
             print("Read head.")
 
@@ -411,17 +471,17 @@ class InowasFlopyReadFitness:
         mask = None
 
         if location["type"] == 'bbox':
-            per_min = location.get('per_min', 0)
-            per_max = location.get('per_max', nstp_flat)
+            per_min = location.get("ts", {}).get('min', 0)
+            per_max = location.get("ts", {}).get('max', nstp_flat)
 
-            lay_min = location.get('lay_min', 0)
-            lay_max = location.get('lay_max', nlay)
+            lay_min = location.get("lay", {}).get('min', 0)
+            lay_max = location.get("lay", {}).get('max', nlay)
 
-            col_min = location.get('col_min', 0)
-            col_max = location.get('col_max', ncol)
+            col_min = location.get("col", {}).get('min', 0)
+            col_max = location.get("col", {}).get('max', ncol)
 
-            row_min = location.get('row_min', 0)
-            row_max = location.get('row_max', nrow)
+            row_min = location.get("row", {}).get('min', 0)
+            row_max = location.get("row", {}).get('max', nrow)
 
             if per_min == per_max:
                 per_max += 1

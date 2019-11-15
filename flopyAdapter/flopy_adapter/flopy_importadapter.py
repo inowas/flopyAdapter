@@ -25,7 +25,7 @@ from flopyAdapter.modflow_package_adapter.gcgadapter import GcgAdapter
 from flopyAdapter.modflow_package_adapter.ssmadapter import SsmAdapter
 
 
-class InowasFlopyImportAdapter:
+class FlopyImportAdapter:
     """
     The Flopy Import Class.
     Serialize given Modflow and MT3D models to json format and

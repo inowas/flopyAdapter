@@ -13,7 +13,7 @@ from flopyAdapter.flopy_adapter.flopy_read_classes.readhead import ReadHead
 from flopyAdapter.flopy_adapter.flopy_read_classes.readfile import ReadFile
 
 
-class InowasFlopyReadAdapter:
+class FlopyReadAdapter:
     """The Flopy Class"""
 
     _request = None
