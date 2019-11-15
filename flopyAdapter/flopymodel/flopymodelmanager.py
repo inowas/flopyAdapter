@@ -106,14 +106,16 @@ class FlopyModelManager:
                     self._flopy_packages[model] = self.create_flopy_package(self.package_orders[model], package_content)
 
     @staticmethod
-    def read_packages(data):
+    def read_packages(data: dict):
         package_content = {}
         for package in data['packages']:
             print(f'Read Flopy package data: {package}')
             package_content[package.lower()] = data[package]
         return package_content
 
-    def create_flopy_package(self, package_order, package_content):
+    def create_flopy_package(self,
+                             package_order: dict,
+                             package_content: dict):
         model = None
         for package in package_order:
             if package in package_content:
@@ -132,7 +134,9 @@ class FlopyModelManager:
         return model
 
     @staticmethod
-    def create_package(name, content, *model):
+    def create_package(name: str,
+                       content: dict,
+                       *model):
         # Modflow packages
         adapter = FLOPY_PACKAGE_TO_ADAPTER_MAPPER[name]
 
