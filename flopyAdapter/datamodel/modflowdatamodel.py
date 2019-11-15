@@ -7,15 +7,11 @@ EMail: ralf.junghanns@gmail.com
 """
 
 from typing import Optional, List, Union
-from pathlib import PurePosixPath
 import json
 from jsonschema import Draft7Validator, RefResolver, ValidationError, RefResolutionError
 from hashlib import md5
 
 from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
-from flopyAdapter.flopy_adapter.flopy_calculationadapter import FlopyCalculationAdapter
-from flopyAdapter.flopy_adapter.flopy_fitnessadapter import FlopyFitnessAdapter
-from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
 
 
 SUPPORTED_OBJECTTYPES_FOR_ADDING = ["wel"]
@@ -218,28 +214,26 @@ class ModflowDataModel:
             raise ValueError(f"Error: bounds lay: {lay}, row: {row}, col: {col} are incorrect."
                              f"Model is limited to {self.nlay} layers, {self.nrow} rows and {self.ncol} cols.")
         if len(pumping_rates) != self.nper:
-            raise ValueError(f"Error: number of pumping rates is {len(pumping_rates)} not equal to "
+            raise ValueError(f"Error: n. of p-rates={len(pumping_rates)} not equal to "
                              f"nper={self.nper}")
 
-        if "wel" not in self.data["mf"]:
-            self.data["mf"]["packages"].extend("wel")
-            self.data["mf"]["wel"] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER["wel"].default()
+        self.data["mf"]["wel"] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER["wel"](self.data["mf"].get("wel", {})).merge()
 
-        if not self.data["mf"]["wel"]["stress_period_data"]:
-            self.data["mf"]["wel"]["stress_period_data"] = {}
+        self.data["mf"]["wel"]["stress_period_data"] = self.data["mf"]["wel"].get("stress_period_data", {})
 
         for period, flux in enumerate(pumping_rates):
             period_flux = [lay, row, col, flux]
 
-            if str(period) not in self.data["mf"]["wel"]["stress_period_data"]:
-                self.data["mf"]["wel"]["stress_period_data"][str(period)] = []
+            try:
+                existing_fluxes = self.data["mf"]["wel"]["stress_period_data"][str(period)]
+            except KeyError:
+                existing_fluxes = []
+                self.data["mf"]["wel"]["stress_period_data"][str(period)] = existing_fluxes
 
-            same_position_flux = [existing_flux
-                                  for existing_flux in self.data["mf"]["wel"]["stress_period_data"][str(period)]
-                                  if existing_flux[:3] == period_flux[:3]]
-
-            if same_position_flux:
+            try:
+                same_position_flux = [existing_flux
+                                      for existing_flux in existing_fluxes
+                                      if existing_flux[:3] == period_flux[:3]]
                 same_position_flux[0][3] += period_flux[3]
-                continue
-
-            self.data["mf"]["wel"]["stress_period_data"][str(period)].append(period_flux)
+            except IndexError:
+                self.data["mf"]["wel"]["stress_period_data"][str(period)].append(period_flux)

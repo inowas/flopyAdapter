@@ -23,22 +23,26 @@ from flopy.mt3d import Mt3dms
 class FlopyCalculationAdapter:
     """The Flopy Class"""
 
-    _report = None
-    _success = None
-
     def __init__(self,
-                 model):  # , model_type
+                 model):
 
         self._model = model
-        # self.model_type = model_type
+
+        self._report = None
+        self._success = None
 
     @staticmethod
     def from_flopymodel(model):
-        if not isinstance(model, (Modflow, Modpath, ModpathBas, ModpathSim, Mt3dms)):
-            raise TypeError(f"Error: model is of type {type(model)}, "
-                            "expected Modflow/Modpath/ModpathBas/ModpathSim/Mt3dms.")
+        try:
+            print(f"Calculation setup with model {model.name} from folder {model.model_ws}")
 
-        # model.check()
+            print("Checking model")
+            model.check()
+        except AttributeError:
+            raise AttributeError(f"Error: model expected to have attributes 'name' and 'model_ws' and 'check' method \n"
+                                 f"model is of type {type(model)}, expected Modflow/Modpath/Mt3dms.")
+        except Exception:
+            raise Exception("The model check must have detected some problems. Check your model.")
 
         return FlopyCalculationAdapter(model)
 
@@ -52,8 +56,6 @@ class FlopyCalculationAdapter:
 
     def run_calculation(self):
         normal_msg = 'Normal termination'
-        # if self.model_type == 'mt':
-        #     normal_msg = 'Program completed'
 
         print('Run datamodel.')
         print(f'Model nam-file: {self._model.namefile}.')

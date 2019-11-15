@@ -25,21 +25,22 @@ class FlopyFitnessAdapter:
                  optimization_data: dict,
                  flopy_adapter: flopy.modflow.Modflow):
 
-        self.objectives = optimization_data.get("objectives")
-        self.constraints = optimization_data.get("constraints")
-        self.objects = optimization_data.get("objects")
+        self._objectives = optimization_data.get("objectives")
+        self._constraints = optimization_data.get("constraints")
+        self._objects = optimization_data.get("objects")
 
-        self.dis_package = flopy_adapter.get_package('DIS')  # _mf.
-        self.model_ws = flopy_adapter.model_ws  # _mf.
-        self.model_name = flopy_adapter.namefile.split('.')[0]  # _mf.
+        self._dis_package = flopy_adapter.get_package('DIS')  # _mf.
+        self._model_ws = flopy_adapter.model_ws  # _mf.
+        self._model_name = flopy_adapter.namefile.split('.')[0]  # _mf.
 
-        print(f"model_ws: {self.model_ws}")
-        print(f"model_name: {self.model_name}")
+        print(f"model_ws: {self._model_ws}")
+        print(f"model_name: {self._model_name}")
 
     @staticmethod
     def from_id(optimization_data: dict,
                 calculation_id: str,
                 folder: Union[str, Path] = "."):
+        # optimization_data not checked as this is done in .from_data
         if not isinstance(calculation_id, str):
             raise TypeError("calculation_id expected to be a string.")
         if not isinstance(folder, (str, Path)):
@@ -58,8 +59,8 @@ class FlopyFitnessAdapter:
             raise FileNotFoundError("folder seems to have no namfile in it.")
 
         try:
-            print(folder_path / nam_file)
             flopy_adapter = flopy.modflow.Modflow.load(nam_file, model_ws=folder_path)
+            print(f"model namfile {nam_file} located in folder {folder_path}")
         except IOError:
             raise IOError("namfile couldn't be opened.")
         except Exception:
@@ -92,7 +93,7 @@ class FlopyFitnessAdapter:
         constraints_exceeded = self.check_constraints()
 
         if True in constraints_exceeded or None in objectives_values:
-            fitness = [obj["penalty_value"] for obj in self.objectives]
+            fitness = [obj["penalty_value"] for obj in self._objectives]
         else:
             fitness = objectives_values
 
@@ -111,25 +112,25 @@ class FlopyFitnessAdapter:
 
         fitness = []
 
-        for objective in self.objectives:
+        for objective in self._objectives:
 
             if objective["type"] == "concentration":
                 mask = self.make_mask(
-                    objective["location"], self.objects, self.dis_package
+                    objective["location"], self._objects, self._dis_package
                 )
-                value = self.read_concentration(objective, mask, self.model_ws, self.model_name)
+                value = self.read_concentration(objective, mask, self._model_ws, self._model_name)
 
             elif objective["type"] == "head":
                 mask = self.make_mask(
-                    objective["location"], self.objects, self.dis_package
+                    objective["location"], self._objects, self._dis_package
                 )
-                value = self.read_head(objective, mask, self.model_ws, self.model_name)
+                value = self.read_head(objective, mask, self._model_ws, self._model_name)
 
             elif objective["type"] == "flux":
-                value = self.read_flux(objective, self.objects)
+                value = self.read_flux(objective, self._objects)
 
             elif objective["type"] == "input_concentration":
-                value = self.read_input_concentration(objective, self.objects)
+                value = self.read_input_concentration(objective, self._objects)
 
             else:
                 value = None
@@ -158,32 +159,32 @@ class FlopyFitnessAdapter:
 
         constraints_exceeded = []
 
-        for constraint in self.constraints:
+        for constraint in self._constraints:
 
             if constraint["type"] == 'head':
                 mask = self.make_mask(
-                    constraint["location"], self.objects, self.dis_package    
+                    constraint["location"], self._objects, self._dis_package
                 )
                 value = self.read_head(
-                    constraint, mask, self.model_ws, self.model_name
+                    constraint, mask, self._model_ws, self._model_name
                 )
    
             elif constraint["type"] == 'concentration':
                 mask = self.make_mask(
-                    constraint["location"], self.objects, self.dis_package    
+                    constraint["location"], self._objects, self._dis_package
                 )
                 value = self.read_concentration(
-                    constraint, mask, self.model_ws, self.model_name
+                    constraint, mask, self._model_ws, self._model_name
                 )
             
             elif constraint["type"] == "flux":
                 value = self.read_flux(
-                    constraint, self.objects
+                    constraint, self._objects
                 )
             
             elif constraint["type"] == "input_concentrations":
                 value = self.read_input_concentration(
-                    constraint, self.objects
+                    constraint, self._objects
                 )
 
             else:
