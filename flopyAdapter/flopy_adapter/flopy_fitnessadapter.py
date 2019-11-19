@@ -5,9 +5,7 @@ Author: Aybulat Fatkhutdinov / Benjamin Gutzmann
 """
 
 from typing import Union
-import os
 from pathlib import Path
-import math
 import numpy as np
 import flopy
 
@@ -296,9 +294,9 @@ class FlopyFitnessAdapter:
         print(f'Read concentration values at location: {data["location"]}')
 
         try:
-            print(os.path.join(model_ws, data["conc_file_name"]))
+            print(Path(model_ws, data["conc_file_name"]))
             conc_file_object = flopy.utils.UcnFile(
-                os.path.join(model_ws, data["conc_file_name"]))
+                Path(model_ws, data["conc_file_name"]))
             conc = conc_file_object.get_alldata(
                 nodata=-9999
                 )
@@ -425,24 +423,24 @@ class FlopyFitnessAdapter:
                         dx = float(abs(obj_2['position']['col']['result'] - obj_1['position']['col']['result']))
                         dy = float(abs(obj_2['position']['row']['result'] - obj_1['position']['row']['result']))
                         dz = float(abs(obj_2['position']['lay']['result'] - obj_1['position']['lay']['result']))
-                        distances.append(math.sqrt((dx**2) + (dy**2) + (dz**2)))
+                        distances.append(np.sqrt((dx**2) + (dy**2) + (dz**2)).item())
                 else:
                     dx = float(abs(location_2['lay_row_col'][2] - obj_1['position']['col']['result']))
                     dy = float(abs(location_2['lay_row_col'][1] - obj_1['position']['row']['result']))
                     dz = float(abs(location_2['lay_row_col'][0] - obj_1['position']['lay']['result']))
-                    distances.append(math.sqrt((dx**2) + (dy**2) + (dz**2)))
+                    distances.append(np.sqrt((dx**2) + (dy**2) + (dz**2)).item())
         else:
             if objects_2 is not None:
                 for obj_2 in objects_2:
                     dx = float(abs(obj_2['position']['col']['result'] - location_1['lay_row_col'][2]))
                     dy = float(abs(obj_2['position']['row']['result'] - location_1['lay_row_col'][1]))
                     dz = float(abs(obj_2['position']['lay']['result'] - location_1['lay_row_col'][0]))
-                    distances.append(math.sqrt((dx**2) + (dy**2) + (dz**2)))
+                    distances.append(np.sqrt((dx**2) + (dy**2) + (dz**2)).item())
             else:
                 dx = float(abs(location_2['lay_row_col'][2]-location_1['lay_row_col'][2]))
                 dy = float(abs(location_2['lay_row_col'][1]-location_1['lay_row_col'][1]))
                 dz = float(abs(location_2['lay_row_col'][0]-location_1['lay_row_col'][0]))
-                distances.append(math.sqrt((dx**2) + (dy**2) + (dz**2)))
+                distances.append(np.sqrt((dx**2) + (dy**2) + (dz**2)).item())
 
         distances = np.array(distances)
         

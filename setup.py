@@ -21,5 +21,9 @@ setup(
     author='Benjamin Gutzmann',
     author_email='gutzemann@gmail.com',
     packages=find_packages(),
-    install_requires=[f'flopy>={__version__}', 'numpy==1.17.2']
+    install_requires=[f'flopy>={__version__}',
+                      'numpy==1.17.2',
+                      'jsonschema==3.0.2',
+                      'scikit-learn==0.21.3',
+                      'scipy==1.3.1']
 )

@@ -5,7 +5,6 @@ EMail: ralf.junghanns@gmail.com
 
 """
 
-from typing import Optional, Dict, Any
 
 from flopyAdapter.datamodel.modflowdatamodel import ModflowDataModel
 from flopyAdapter.mapping.flopy_package_to_adapter_mapping import FLOPY_PACKAGE_TO_ADAPTER_MAPPER
