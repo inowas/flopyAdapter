@@ -6,19 +6,6 @@ Author: Ralf Junghanns
 EMail: ralf.junghanns@gmail.com
 """
 
-from flopy.modflow.mf import Modflow
-from flopy.modpath.mp import Modpath
-from flopy.modpath.mpbas import ModpathBas
-from flopy.modpath.mpsim import ModpathSim
-from flopy.mt3d import Mt3dms
-
-# from flopyAdapter.flopy_adapter.flopy_read_classes.readbudget import ReadBudget
-# from flopyAdapter.flopy_adapter.flopy_read_classes.readconcentration import ReadConcentration
-# from flopyAdapter.flopy_adapter.flopy_read_classes.readdrawdown import ReadDrawdown
-# from flopyAdapter.flopy_adapter.flopy_read_classes.readhead import ReadHead
-#
-# from flopyAdapter.flopy_adapter.statistics.hobstatistics import HobStatistics
-
 
 class FlopyCalculationAdapter:
     """The Flopy Class"""
@@ -34,9 +21,7 @@ class FlopyCalculationAdapter:
     @staticmethod
     def from_flopymodel(model):
         try:
-            print(f"Calculation setup with model {model.name} from folder {model.model_ws}")
-
-            print("Checking model")
+            # Check model consistency
             model.check()
         except AttributeError:
             raise AttributeError(f"Error: model expected to have attributes 'name' and 'model_ws' and 'check' method \n"

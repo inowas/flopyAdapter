@@ -1,4 +1,4 @@
-from .adapter_base import ModflowPackageAdapterBase
+from flopyAdapter.modflow_package_adapter.adapter_base import ModflowPackageAdapterBase
 import flopy.modpath as mp
 
 

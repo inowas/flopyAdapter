@@ -182,8 +182,6 @@ class ModflowDataModel:
 
         """
 
-        # todo schema validation
-
         for obj in objects:
             if obj["type"] not in SUPPORTED_OBJECTTYPES_FOR_ADDING:
                 raise ValueError(f"Error: object has unknown type {obj['type']}."
