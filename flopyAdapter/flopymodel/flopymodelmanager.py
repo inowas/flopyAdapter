@@ -151,9 +151,7 @@ class FlopyModelManager:
 
     def run_model(self):
         for package_type, package in self._flopy_packages.items():
-            calculation_adapter = FlopyCalculationAdapter(package)
-
-            calculation_adapter.check_model()
+            calculation_adapter = FlopyCalculationAdapter(package)  # includes check
 
             calculation_adapter.write_input_model()
 
