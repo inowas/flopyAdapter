@@ -6,6 +6,8 @@ Author: Ralf Junghanns
 EMail: ralf.junghanns@gmail.com
 """
 
+from flopy.modflow.mf import Modflow
+
 
 class FlopyCalculationAdapter:
     """The Flopy Class"""
@@ -19,10 +21,10 @@ class FlopyCalculationAdapter:
         self._success = None
 
     @staticmethod
-    def from_flopymodel(model):
+    def from_flopymodel(model: Modflow):
         try:
             # Check model consistency
-            model.check()
+            model.check(verbose=False)
         except AttributeError:
             raise AttributeError(f"Error: model expected to have attributes 'name' and 'model_ws' and 'check' method \n"
                                  f"model is of type {type(model)}, expected Modflow/Modpath/Mt3dms.")
@@ -31,9 +33,9 @@ class FlopyCalculationAdapter:
 
         return FlopyCalculationAdapter(model)
 
-    def check_model(self):
-        if self._model:
-            self._model.check()
+    # def check_model(self):
+    #     if self._model:
+    #         self._model.check()
 
     def write_input_model(self):
         print('Write input files.')
