@@ -7,6 +7,7 @@ EMail: ralf.junghanns@gmail.com
 """
 
 from typing import Optional, List, Union
+from pathlib import Path
 import json
 from jsonschema import Draft7Validator, RefResolver, ValidationError, RefResolutionError
 from hashlib import md5
@@ -26,9 +27,9 @@ def sort_dictionary(dictionary: dict,
 
     """
     if not isinstance(dictionary, dict):
-        raise TypeError("Error: input is not of type dict")
+        raise TypeError("input is not of type dict")
     if not isinstance(recursive, bool):
-        raise TypeError("Error: recursive is not of type bool")
+        raise TypeError("recursive is not of type bool")
 
     if recursive:
         for key, value in dictionary.items():
@@ -53,8 +54,6 @@ class ModflowDataModel:
     """
 
     def __init__(self,
-                 # uuid: str,
-                 # version: str,
                  data: dict):
         self._data = data
 
@@ -69,14 +68,15 @@ class ModflowDataModel:
             data (dict) - the model data consisting of modflow packages in flopy shape
             schema (dict) - the schema that the data is tested against. Using a function argument
             ensures that the schema is always up to date as it first has to be downloaded
-            resolver (RefResolver) - the resolver for subschemas as defined in the file itself
+            resolver (RefResolver) - the resolver for subschemata as defined in the file itself
+
         Returns:
 
         """
         if not isinstance(data, dict):
-            raise TypeError("Error: data is not a json/dictionary.")
+            raise TypeError("data is not a json/dictionary.")
         if not isinstance(schema, dict):
-            raise TypeError("Error: schema is not a json/dictionary.")
+            raise TypeError("schema is not a json/dictionary.")
 
         ModflowDataModel.validate(data, schema, resolver)
 
@@ -97,9 +97,9 @@ class ModflowDataModel:
             # if valid returns None
             return Draft7Validator(schema=schema, resolver=resolver).validate(data)
         except ValidationError:
-            raise ValidationError("Error: data couldn't be validated.")
+            raise ValidationError("data couldn't be validated.")
         except RefResolutionError:
-            raise RefResolutionError("Error: schema references couldn't be solved.")
+            raise RefResolutionError("schema references couldn't be solved.")
 
     @property
     def data(self):
@@ -109,6 +109,29 @@ class ModflowDataModel:
         """
         return self._data
 
+    @property
+    def model_ws(self):
+        return self._data["mf"]["mf"]["model_ws"]
+
+    @model_ws.setter
+    def model_ws(self,
+                 new_model_ws: Optional[Union[str, Path]] = None):
+        """ Setter for model_ws which has to be used in order to set the correct working folder before the model is
+        built and executed
+
+        :param new_model_ws:
+        :return:
+        """
+        if not isinstance(new_model_ws, (str, Path)):
+            raise TypeError("model_ws is not a str/Path")
+
+        for package in ["mf", "mt", "swt", "mp"]:
+            try:
+                # Set model_ws in packages to defined folder
+                self._data[package][package]["model_ws"] = new_model_ws
+            except KeyError:
+                pass
+
     def get_module(self, mf_module):
         """ Function to return one module from the modflow model data
 
@@ -116,12 +139,12 @@ class ModflowDataModel:
         :return:
         """
         assert mf_module in ["mf", "mt", "mp"], \
-            f"Error: requested module {mf_module} is not one of 'mf', 'mt', 'mp'."
+            f"requested module {mf_module} is not one of 'mf', 'mt', 'mp'."
 
         try:
             return self.data[mf_module]
         except KeyError:
-            raise KeyError(f"Error: module {mf_module} is not available in modflow model data.")
+            raise KeyError(f"module {mf_module} is not available in modflow model data.")
 
     def get_package(self, mf_module, name):
         """ Function to return a specific package of a chosen modflow model module.
@@ -132,7 +155,7 @@ class ModflowDataModel:
         try:
             return module_data[name]
         except KeyError:
-            raise KeyError(f'Error: package {name} not found in module {mf_module}.')
+            raise KeyError(f'package {name} not found in module {mf_module}.')
 
     @property
     def md5_hash(self) -> str:
@@ -184,7 +207,7 @@ class ModflowDataModel:
 
         for obj in objects:
             if obj["type"] not in SUPPORTED_OBJECTTYPES_FOR_ADDING:
-                raise ValueError(f"Error: object has unknown type {obj['type']}."
+                raise ValueError(f"object has unknown type {obj['type']}."
                                  f"Currently only 'wel' is supported.")
 
             if obj["type"] == "wel":
@@ -201,18 +224,18 @@ class ModflowDataModel:
                  col: int,
                  pumping_rates: List[Union[int, float]]):
         if not isinstance(lay, int) or not isinstance(row, int) or not isinstance(col, int):
-            raise TypeError(f"Error: type of lay {type(lay)}, type of row {type(row)},"
+            raise TypeError(f"type of lay {type(lay)}, type of row {type(row)},"
                             f"type of col {type(col)}, expected int for all.")
         if not isinstance(pumping_rates, list):
-            raise TypeError(f"Error: pumping rates are of type {type(pumping_rates)}, should be list.")
+            raise TypeError(f"pumping rates are of type {type(pumping_rates)}, should be list.")
         if not all([isinstance(rate, (int, float)) for rate in pumping_rates]):
-            raise TypeError("Error: pumping rates should all be of type int/float")
+            raise TypeError("pumping rates should all be of type int/float")
 
         if lay not in range(self.nlay) or row not in range(self.nrow) or col not in range(self.ncol):
-            raise ValueError(f"Error: bounds lay: {lay}, row: {row}, col: {col} are incorrect."
+            raise ValueError(f"bounds lay: {lay}, row: {row}, col: {col} are incorrect."
                              f"Model is limited to {self.nlay} layers, {self.nrow} rows and {self.ncol} cols.")
         if len(pumping_rates) != self.nper:
-            raise ValueError(f"Error: n. of p-rates={len(pumping_rates)} not equal to "
+            raise ValueError(f"number of p-rates={len(pumping_rates)} not equal to "
                              f"nper={self.nper}")
 
         self.data["mf"]["wel"] = FLOPY_PACKAGE_TO_ADAPTER_MAPPER["wel"](self.data["mf"].get("wel", {})).merge()
