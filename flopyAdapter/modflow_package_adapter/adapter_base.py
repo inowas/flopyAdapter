@@ -34,11 +34,15 @@ class ModflowPackageAdapterBase(ABC):
         for key in self._data:
             if key.startswith('_'):
                 continue
-            if key == 'stress_period_data':
-                default[key] = self.to_dict(self._data[key])
-                continue
 
-            default[key] = self._data[key]
+            try:
+                if key == 'stress_period_data':
+                    default[key] = self.to_dict(self._data[key])
+                    continue
+
+                default[key] = self._data[key]
+            except KeyError:
+                pass
         return default
 
     @staticmethod
