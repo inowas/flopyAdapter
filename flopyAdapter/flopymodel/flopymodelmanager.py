@@ -120,7 +120,7 @@ class FlopyModelManager:
             if package in package_content:
                 if package in ['mf', 'mt', 'mp', 'swt']:
                     print(f'Create Flopy Model: {package}')
-                    if model == "mt":
+                    if package == "mt":
                         # In opposition to the other models mt needs the modflow mf data model as basis
                         model = self.create_package(package, package_content[package], self._flopy_packages["mf"])
                     else:
