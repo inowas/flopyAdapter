@@ -36,20 +36,26 @@ class FlopyModelManager:
         # self._report = ''
 
         self.package_orders = {
-            "mf": ['mf', 'dis', 'bas', 'bas6',
-                   'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
-                   'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'],
-            "mt": ['mf', 'dis', 'bas', 'bas6',
-                   'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
-                   'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'],
+            "mf": [
+                'mf', 'dis', 'bas', 'bas6',
+                'chd', 'evt', 'drn', 'ghb', 'hob', 'rch', 'riv', 'wel',
+                'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6'
+            ],
+            "mt": [
+                "mt", "btn", "adv", "dsp", "gcg", "ssm", "lkt",
+                "phc", "rct", "sft", "tob", "uzt"
+            ],
             "swt": [  # Modflow
                 'swt', 'dis', 'bas', 'bas6', 'riv', 'wel', 'rch', 'chd', 'ghb', 'hob',
                 'lpf', 'upw', 'pcg', 'nwt', 'oc', 'lmt', 'lmt6',
                 # Mt3D
                 'btn', 'adv', 'dsp', 'gcg', 'ssm', 'lkt', 'phc', 'rct', 'sft', 'tob', 'uzt',
                 # Seawat
-                'vdf', 'vsc'],
-            "mp": ['mp', 'bas', 'sim']
+                'vdf', 'vsc'
+            ],
+            "mp": [
+                'mp', 'bas', 'sim'
+            ]
         }
 
     @staticmethod
@@ -117,18 +123,20 @@ class FlopyModelManager:
                              package_content: dict):
         model = None
         for package in package_order:
-            if package in package_content:
-                if package in ['mf', 'mt', 'mp', 'swt']:
-                    print(f'Create Flopy Model: {package}')
-                    if package == "mt":
-                        # In opposition to the other models mt needs the modflow mf data model as basis
-                        model = self.create_package(package, package_content[package], self._flopy_packages["mf"])
-                    else:
-                        model = self.create_package(package, package_content[package])
+            if package in ['mf', 'mt', 'mp', 'swt']:
+                print(f'Create Flopy Model: {package}')
+                if package == "mf":
+                    # In opposition to the other main packages mf is the basis for all and needs no basemodel
+                    model = self.create_package(package, package_content[package])
                 else:
-                    print(f'Create Flopy Package: {package}')
-                    # Subpackages are based on main models
-                    self.create_package(package, package_content[package], model)
+                    # Others need mf as main package
+                    assert self._flopy_packages["mf"], \
+                         "Modflow model isn't yet build but needed for package {package}."
+                    model = self.create_package(package, package_content[package], self._flopy_packages["mf"])
+            elif package in package_content:
+                print(f'Create Flopy Package: {package}')
+                # Subpackages are based on their relative main package
+                self.create_package(package, package_content[package], model)
 
         return model
 
@@ -139,10 +147,9 @@ class FlopyModelManager:
         # Modflow packages
         adapter = FLOPY_PACKAGE_TO_ADAPTER_MAPPER[name]
 
-        if name in ['mf', 'mt', 'mp', 'swt']:
-            return adapter(content).get_package()
-        else:
-            adapter(content).get_package(*model)
+        package = adapter(content).get_package(*model)
+
+        return package
 
     # @staticmethod
     # def write_input_model(model):
