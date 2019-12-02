@@ -172,6 +172,15 @@ class FlopyModelManager:
 
             self._flopy_packages_success[package_type] = calculation_success
 
+    @property
+    def overall_model_success(self):
+        try:
+            if len(self._flopy_packages_success) == 0:
+                raise ValueError
+            return all(self._flopy_packages_success)
+        except ValueError:
+            raise ValueError("No flopy model has been run to this point. Success can't be determined!")
+
     @staticmethod
     def run_hob_statistics(model):
         print(f'Calculate hob-statistics for data model {model.name}')
