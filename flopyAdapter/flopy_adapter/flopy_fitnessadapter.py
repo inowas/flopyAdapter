@@ -8,6 +8,7 @@ from typing import Union
 from pathlib import Path
 import numpy as np
 import flopy
+from flopyAdapter.config import NO_DATA_VALUE
 
 
 class FlopyFitnessAdapter:
@@ -261,7 +262,7 @@ class FlopyFitnessAdapter:
             print("Read head.")
 
             head = head_file_object.get_alldata(
-                nodata=-9999
+                    nodata=NO_DATA_VALUE
                 )
             head = head[mask]
 
@@ -298,7 +299,7 @@ class FlopyFitnessAdapter:
             conc_file_object = flopy.utils.UcnFile(
                 Path(model_ws, data["conc_file_name"]))
             conc = conc_file_object.get_alldata(
-                nodata=-9999
+                    nodata=NO_DATA_VALUE
                 )
             conc = conc[mask]
 
@@ -411,7 +412,7 @@ class FlopyFitnessAdapter:
             ]
 
         if location_2['type'] == 'object':
-            objects_2 =[
+            objects_2 = [
                 obj for id_, obj in objects.items() if id_ in location_2['objects_ids']
             ]
         
