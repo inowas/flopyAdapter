@@ -25,5 +25,5 @@ setup(
                       'numpy==1.17.2',
                       'jsonschema==3.0.2',
                       'scikit-learn==0.21.3',
-                      'scipy==1.3.1']
+                      'scipy==1.10.0']
 )
